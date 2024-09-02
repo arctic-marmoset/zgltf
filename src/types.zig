@@ -1,5 +1,5 @@
 const std = @import("std");
-const Gltf = @import("main.zig");
+const Gltf = @import("Gltf.zig");
 const pi = std.math.pi;
 const ArrayList = std.ArrayList;
 const panic = std.debug.panic;
@@ -96,7 +96,7 @@ pub const Accessor = struct {
     pub fn iterator(
         accessor: Accessor,
         comptime T: type,
-        gltf: *const Gltf,
+        gltf: Gltf,
         binary: []align(4) const u8,
     ) AccessorIterator(T) {
         if (switch (accessor.component_type) {

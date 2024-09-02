@@ -2,7 +2,7 @@
 /// glTF™ 2.0 Specification is available here:
 /// https://www.khronos.org/registry/glTF/specs/2.0/glTF-2.0.html
 ///
-const Self = @This();
+const Gltf = @This();
 
 const std = @import("std");
 const helpers = @import("helpers.zig");
@@ -78,7 +78,7 @@ data: Data,
 
 glb_binary: ?[]align(4) const u8 = null,
 
-pub fn init(allocator: Allocator) Self {
+pub fn init(allocator: Allocator) Gltf {
     var arena = allocator.create(ArenaAllocator) catch {
         panic("Error while allocating memory for gltf arena.", .{});
     };
@@ -86,7 +86,7 @@ pub fn init(allocator: Allocator) Self {
     arena.* = ArenaAllocator.init(allocator);
 
     const alloc = arena.allocator();
-    return Self{
+    return .{
         .arena = arena,
         .data = .{
             .asset = Asset{ .version = "Undefined" },
@@ -109,7 +109,7 @@ pub fn init(allocator: Allocator) Self {
 }
 
 /// Fill data by parsing a glTF file's buffer.
-pub fn parse(self: *Self, file_buffer: []align(4) const u8) !void {
+pub fn parse(self: *Gltf, file_buffer: []align(4) const u8) !void {
     if (isGlb(file_buffer)) {
         try self.parseGlb(file_buffer);
     } else {
@@ -117,7 +117,7 @@ pub fn parse(self: *Self, file_buffer: []align(4) const u8) !void {
     }
 }
 
-pub fn debugPrint(self: *const Self) void {
+pub fn debugPrint(self: Gltf) void {
     const msg =
         \\
         \\  glTF file info:
@@ -174,7 +174,7 @@ pub fn debugPrint(self: *const Self) void {
 /// Note: This library won't pull to memory the binary buffer corresponding
 /// to the BufferView.
 pub fn getDataFromBufferView(
-    self: *const Self,
+    self: Gltf,
     comptime T: type,
     /// List that will be fill with data.
     list: *ArrayList(T),
@@ -238,7 +238,7 @@ pub fn getDataFromBufferView(
     }
 }
 
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *Gltf) void {
     self.arena.deinit();
     self.arena.child_allocator.destroy(self.arena);
 }
@@ -262,7 +262,7 @@ pub fn getLocalTransform(node: Node) Mat4 {
     };
 }
 
-pub fn getGlobalTransform(data: *const Data, node: Node) Mat4 {
+pub fn getGlobalTransform(data: Data, node: Node) Mat4 {
     var parent_index = node.parent;
     var node_transform: Mat4 = getLocalTransform(node);
 
@@ -284,7 +284,7 @@ fn isGlb(glb_buffer: []align(4) const u8) bool {
     return fields[0] == GLB_MAGIC_NUMBER;
 }
 
-fn parseGlb(self: *Self, glb_buffer: []align(4) const u8) !void {
+fn parseGlb(self: *Gltf, glb_buffer: []align(4) const u8) !void {
     const GLB_CHUNK_TYPE_JSON: u32 = 0x4E4F534A; // 'JSON' in ASCII.
     const GLB_CHUNK_TYPE_BIN: u32 = 0x004E4942; // 'BIN' in ASCII.
 
@@ -374,7 +374,7 @@ fn parseGlb(self: *Self, glb_buffer: []align(4) const u8) !void {
     }
 }
 
-fn parseGltfJson(self: *Self, gltf_json: []const u8) !void {
+fn parseGltfJson(self: *Gltf, gltf_json: []const u8) !void {
     const alloc = self.arena.allocator();
 
     var gltf_parsed = try json.parseFromSlice(json.Value, alloc, gltf_json, .{});
@@ -1311,10 +1311,17 @@ test "gltf.parseGlb" {
     const expectEqualSlices = std.testing.expectEqualSlices;
 
     // This is the '.glb' file.
-    const glb_buf = try std.fs.cwd().readFileAllocOptions(allocator, "test-samples/box_binary/Box.glb", 512_000, null, 4, null);
+    const glb_buf = try std.fs.cwd().readFileAllocOptions(
+        allocator,
+        "test-samples/box_binary/Box.glb",
+        512_000,
+        null,
+        4,
+        null,
+    );
     defer allocator.free(glb_buf);
 
-    var gltf = Self.init(allocator);
+    var gltf = Gltf.init(allocator);
     defer gltf.deinit();
 
     try expectEqualSlices(u8, gltf.data.asset.version, "Undefined");
@@ -1332,17 +1339,18 @@ test "gltf.parseGlb" {
                     const accessor = gltf.data.accessors.items[accessor_index];
                     gltf.getDataFromBufferView(f32, &tmp, accessor, gltf.glb_binary.?);
 
+                    // zig fmt: off
                     try expectEqualSlices(f32, tmp.items, &[72]f32{
-                        // zig fmt: off
                         -0.50, -0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
-                        0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 
-                        0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50, 
-                        0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 
-                        -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 
-                        0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50, 
-                        -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50, 
+                        0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50,
+                        0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50,
+                        0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50,
+                        -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50,
+                        0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
+                        -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50,
                         -0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 0.50, -0.50,
                     });
+                    // zig fmt: on
                 },
                 else => {},
             }
@@ -1361,11 +1369,11 @@ test "gltf.parseGlbTextured" {
         512_000,
         null,
         4,
-        null
+        null,
     );
     defer allocator.free(glb_buf);
 
-    var gltf = Self.init(allocator);
+    var gltf = Gltf.init(allocator);
     defer gltf.deinit();
 
     try gltf.parseGlb(glb_buf);
@@ -1373,7 +1381,7 @@ test "gltf.parseGlbTextured" {
     const test_to_check = try std.fs.cwd().readFileAlloc(
         allocator,
         "test-samples/box_binary_textured/test.png",
-        512_000
+        512_000,
     );
     defer allocator.free(test_to_check);
 
@@ -1394,11 +1402,11 @@ test "gltf.parse" {
         512_000,
         null,
         4,
-        null
+        null,
     );
     defer allocator.free(buf);
 
-    var gltf = Self.init(allocator);
+    var gltf = Gltf.init(allocator);
     defer gltf.deinit();
 
     try expectEqualSlices(u8, gltf.data.asset.version, "Undefined");
@@ -1434,11 +1442,11 @@ test "gltf.parse (cameras)" {
         512_000,
         null,
         4,
-        null
+        null,
     );
     defer allocator.free(buf);
 
-    var gltf = Self.init(allocator);
+    var gltf = Gltf.init(allocator);
     defer gltf.deinit();
 
     try gltf.parse(buf);
@@ -1473,7 +1481,7 @@ test "gltf.getDataFromBufferView" {
         512_000,
         null,
         4,
-        null
+        null,
     );
     defer allocator.free(buf);
 
@@ -1489,7 +1497,7 @@ test "gltf.getDataFromBufferView" {
     );
     defer allocator.free(binary);
 
-    var gltf = Self.init(allocator);
+    var gltf = Gltf.init(allocator);
     defer gltf.deinit();
 
     try gltf.parse(buf);
@@ -1505,17 +1513,18 @@ test "gltf.getDataFromBufferView" {
                     const accessor = gltf.data.accessors.items[accessor_index];
                     gltf.getDataFromBufferView(f32, &tmp, accessor, binary);
 
+                    // zig fmt: off
                     try expectEqualSlices(f32, tmp.items, &[72]f32{
-                        // zig fmt: off
                         -0.50, -0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
-                        0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 
-                        0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50, 
-                        0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 
-                        -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, 
-                        0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50, 
-                        -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50, 
+                        0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50,
+                        0.50, -0.50, -0.50, -0.50, -0.50, -0.50, 0.50, 0.50, 0.50,
+                        0.50, -0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50, -0.50,
+                        -0.50, 0.50, 0.50, 0.50, 0.50, 0.50, -0.50, 0.50, -0.50,
+                        0.50, 0.50, -0.50, -0.50, -0.50, 0.50, -0.50, 0.50, 0.50,
+                        -0.50, -0.50, -0.50, -0.50, 0.50, -0.50, -0.50, -0.50, -0.50,
                         -0.50, 0.50, -0.50, 0.50, -0.50, -0.50, 0.50, 0.50, -0.50,
                     });
+                    // zig fmt: on
                 },
                 else => {},
             }
@@ -1534,11 +1543,11 @@ test "gltf.parse (lights)" {
         512_000,
         null,
         4,
-        null
+        null,
     );
     defer allocator.free(buf);
 
-    var gltf = Self.init(allocator);
+    var gltf = Gltf.init(allocator);
     defer gltf.deinit();
 
     try gltf.parse(buf);
@@ -1547,13 +1556,13 @@ test "gltf.parse (lights)" {
 
     try expect(gltf.data.lights.items[0].name != null);
     try expect(std.mem.eql(u8, "Light", gltf.data.lights.items[0].name.?));
-    try expectEqual([3]f32 { 1, 1, 1 }, gltf.data.lights.items[0].color);
+    try expectEqual([3]f32{ 1, 1, 1 }, gltf.data.lights.items[0].color);
     try expectEqual(@as(f32, 1000), gltf.data.lights.items[0].intensity);
     try expectEqual(LightType.point, gltf.data.lights.items[0].type);
 
     try expect(gltf.data.lights.items[1].name != null);
     try expect(std.mem.eql(u8, "Light.001", gltf.data.lights.items[1].name.?));
-    try expectEqual([3]f32 { 1, 1, 1 }, gltf.data.lights.items[1].color);
+    try expectEqual([3]f32{ 1, 1, 1 }, gltf.data.lights.items[1].color);
     try expectEqual(@as(f32, 1000), gltf.data.lights.items[1].intensity);
     try expectEqual(LightType.spot, gltf.data.lights.items[1].type);
 
@@ -1563,7 +1572,7 @@ test "gltf.parse (lights)" {
 
     try expect(gltf.data.lights.items[2].name != null);
     try expect(std.mem.eql(u8, "Light.002", gltf.data.lights.items[2].name.?));
-    try expectEqual([3]f32 { 1, 1, 1 }, gltf.data.lights.items[2].color);
+    try expectEqual([3]f32{ 1, 1, 1 }, gltf.data.lights.items[2].color);
     try expectEqual(@as(f32, 1000), gltf.data.lights.items[2].intensity);
     try expectEqual(LightType.directional, gltf.data.lights.items[2].type);
 
